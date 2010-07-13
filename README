@@ -1,0 +1,26 @@
+mpl is a ruby cli mplayer wrapper
+
+It stops screensaver, music player, saves volume and play state and restores it afterwards.
+(Currently only xscreensaver and mpd is supported.)
+
+It also
+* recurses 1 level into directories if a directory is given,
+* plays current dir if nothing is given,
+* tries to find incomplete filenames:
+ $ mpl foo/2x13
+ plays foo/*2x13* if no foo/2x13 exists
+ if no foo/*2x13* exists, it calls locate
+* excludes files with certain extensions, you can add extensions using -X
+* randomizes files or directories, picking first N files:
+ -R		randomize files		(keeps subsequent files with increasing _\d+ suffix together) (1x02-Ep_1.avi and 1x03-Ep_2.avi will be kept together but 1x02-Ep1.avi and 1x03-Ep2.avi won't)
+ -R/	randomize dirs		(randomizes order of directories but not the files within)
+ -R1	randomize files | head -n1		(same as -R but play only the first file)
+	(works for any number)
+ -DF		-framedrop -fs
+ -X	exclude extension	(-X jpeg will ignore all .jpeg files) (note that mpl excludes some extensions by default, grep rejary)
+* any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
+* if all files are in 1 dir, adds options from $dir/.mpl
+
+
+Author: Martin Hradil <himdel@seznam.cz>
+Licence: GNU GPLv2 or later
