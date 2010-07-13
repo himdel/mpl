@@ -49,8 +49,8 @@ rejary = ['sub', 'srt', 'txt', 'pdf', 'tgz', 'rb', 'pdf', 'jpg', 'idx', 'zip', '
 
 # save volume and play/paused state, pause if playing
 def snd_save
-	@play_state = `mpc | tail -n2 | head -n1`.chomp.sub(/^\s*\[(.*)\].*$/, '\1')
-	@volume = `mpc | tail -n1`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
+	@play_state = `mpc | sed -n 2p`.chomp.sub(/^\s*\[(.*)\].*$/, '\1')
+	@volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
 	`mpc toggle` if @play_state == "playing"
 end
 
