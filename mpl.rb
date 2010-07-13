@@ -39,19 +39,13 @@ end
 
 # parse opts
 randomize = ! opts.select { |s| s.start_with? "-R" }.empty?
-justone = opts.select { |s| s =~ /^-R\d+$/ }
-if justone.empty?
-	justone = 0
-else
-	justone = justone.first.sub(/^-R/, '').to_i
-end
-
+justone = opts.select { |s| s =~ /^-R\d+$/ }.first.sub(/^-R/, '').to_i rescue 0
 sortdir = opts.include? "-R/"
 exclude = opts.select { |s| s.start_with? "-X=" }.map { |s| s.sub(/^-X=/, '') }
 opts = [opts, "-framedrop", "-fs"].flatten if opts.include? '-DF'
 opts.reject! { |s| s.start_with?("-R") or (s == '-DF') or s.start_with?("-X=") }
 
-rejary = ['sub', 'srt', 'txt', 'pdf', 'tgz', 'rb', 'pdf', 'jpg', 'idx', 'zip', 'png', 'gif', 'JPG', 'jpeg', exclude].flatten.map { |x| "." + x.downcase }
+rejary = ['sub', 'srt', 'txt', 'pdf', 'tgz', 'rb', 'pdf', 'jpg', 'idx', 'zip', 'png', 'gif', 'JPG', 'jpeg', 'ps', 'py', 'gz', 'bz2', 'h', 'o', 'c', exclude].flatten.map { |x| "." + x.downcase }
 
 # save volume and play/paused state, pause if playing
 def snd_save

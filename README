@@ -22,5 +22,14 @@ It also
 * if all files are in 1 dir, adds options from $dir/.mpl
 
 
-Author: Martin Hradil <himdel@seznam.cz>
+Author: Martin Hradil <himdel seznam cz>
 Licence: GNU GPLv2 or later
+
+
+TODO list:
+* gnome-screensaver and kscreensaver support
+* other music players than mpd
+* maybe proper recursion
+* remembering where you stopped (requires a pipe to mplayer -something)
+* config file in ~/.mpl
+* in there a way to add more commands for before and after
