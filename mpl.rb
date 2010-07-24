@@ -56,13 +56,18 @@ def snd_save_mpc
 	@play_state = `mpc | sed -n 2p`.chomp.sub(/^\s*\[(.*)\].*$/, '\1')
 	`mpc toggle` if @play_state == "playing"
 
-	@volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
+	volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
+	if volume.to_i == volume
+		@volume = volume
+		return
+	end
+	raise volume
 end
 
 # restore volume and play/paused state
 def snd_restore_mpc
 	`mpc volume #{@volume}`
-
+	p [:snd_restore_mpc, @volume]
 	`mpc toggle` if @play_state == "playing"
 end
 
@@ -71,17 +76,23 @@ end
 def snd_save_amixer
 	@play_state = 'unknown'
 
-	@volume = ['Master', 'PCM'].map do |d|
-		`amixer sget #{d}`.select do |l|
-			l.chomp!
-			if l.match /\[on\]\s*$/
-				l.sub!(/^.*?\s(\d+)\s.*$/, '\1')
-			end
-		end.first.to_i rescue 0
+	volume = []
+	['Master', 'PCM'].each do |d|
+		vals = `amixer sget #{d}`.map(&:chomp).select do |l|
+			l.sub!(/^.*?\s(\d+)\s+\[\d+%\].*$/, '\1')
+		end
+		val = vals.first.to_i
+		volume << val
 	end
+	if volume[0].to_i == volume[0] and volume[1] == volume[1].to_i
+		@volume = volume
+		return
+	end
+	raise volume
 end
 
 def snd_restore_amixer
+	p [:snd_restore_amixer, @volume]
 	`amixer sset Master #{@volume[0]}`
 	`amixer sset PCM #{@volume[1]}`
 end
@@ -89,8 +100,10 @@ end
 # dispatchers
 
 def snd_save
-	snd_restore_amixer rescue true
-	snd_restore_mpc rescue true
+	snd_save_amixer rescue $stderr.puts "snd_save_amixer failed"
+	snd_save_mpc rescue $stderr.puts "snd_save_mpc failed"
+
+	p @volume
 end
 
 def snd_restore
