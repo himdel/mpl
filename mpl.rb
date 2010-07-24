@@ -47,18 +47,60 @@ opts.reject! { |s| s.start_with?("-R") or (s == '-DF') or s.start_with?("-X=") }
 
 rejary = ['sub', 'srt', 'txt', 'pdf', 'tgz', 'rb', 'pdf', 'jpg', 'idx', 'zip', 'png', 'gif', 'JPG', 'jpeg', 'ps', 'py', 'gz', 'bz2', 'h', 'o', 'c', exclude].flatten.map { |x| "." + x.downcase }
 
+
+
+# volume controls: mpc version, obsolete, used if amixer version fails
+
 # save volume and play/paused state, pause if playing
-def snd_save
+def snd_save_mpc
 	@play_state = `mpc | sed -n 2p`.chomp.sub(/^\s*\[(.*)\].*$/, '\1')
-	@volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
 	`mpc toggle` if @play_state == "playing"
+
+	@volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
 end
 
 # restore volume and play/paused state
-def snd_restore
+def snd_restore_mpc
 	`mpc volume #{@volume}`
+
 	`mpc toggle` if @play_state == "playing"
 end
+
+# alsa version
+
+def snd_save_amixer
+	@play_state = 'unknown'
+
+	@volume = ['Master', 'PCM'].map do |d|
+		`amixer sget #{d}`.select do |l|
+			l.chomp!
+			if l.match /\[on\]\s*$/
+				l.sub!(/^.*?\s(\d+)\s.*$/, '\1')
+			end
+		end.first.to_i rescue 0
+	end
+end
+
+def snd_restore_amixer
+	`amixer sset Master #{@volume[0]}`
+	`amixer sset PCM #{@volume[1]}`
+end
+
+# dispatchers
+
+def snd_save
+	snd_restore_amixer rescue true
+	snd_restore_mpc rescue true
+end
+
+def snd_restore
+	if Array === @volume
+		snd_restore_amixer
+	else
+		snd_restore_mpc
+	end
+end
+
 
 def mplayer( a, b )
 	system("mplayer", *(a + b))
