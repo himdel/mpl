@@ -56,7 +56,7 @@ def snd_save_mpc
 	@play_state = `mpc | sed -n 2p`.chomp.sub(/^\s*\[(.*)\].*$/, '\1')
 	`mpc toggle` if @play_state == "playing"
 
-	volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1')
+	volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1').to_i
 	if volume.to_i == volume
 		@volume = volume
 		return
@@ -262,5 +262,4 @@ mplayer(opts.flatten, files.flatten)
 `killall -CONT xscreensaver`
 snd_restore unless opts.include? ["-ao", "null"]
 `xscreensaver-command -deactivate`
-
-__END__
+p :end
