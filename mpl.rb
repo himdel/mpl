@@ -3,9 +3,9 @@
 # params:
 # -R	randomize files		(keeps subsequent files with increasing _\d+ suffix together) (1x02-Ep_1.avi and 1x03-Ep_2.avi will be kept together but 1x02-Ep1.avi and 1x03-Ep2.avi won't)
 # -R/	randomize dirs		(randomizes order of directories but not the files within)
-# -R<number>	randomize files | head -n$number		(same as -R but play only the first file; works for any number > 0)
 # -S	random start	(doesn't randomize order, just where to start)
 # -S<number>	(drop first $number elements)
+# -C<number>	cut after first N files (applied *after* both R and S)
 # -DF		-framedrop -fs
 # -X	exclude extension	(-X jpeg will ignore all .jpeg files) (note that mpl excludes some extensions by default, grep rejary)
 # any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
@@ -40,15 +40,15 @@ end
 
 # parse opts
 randomize = ! opts.select { |s| s.start_with? "-R" }.empty?
-justone = opts.select { |s| s =~ /^-R\d+$/ }.first.sub(/^-R/, '').to_i rescue 0
+justone = opts.select { |s| s =~ /^-C\d+$/ }.first.sub(/^-C/, '').to_i rescue 0
 rotate = opts.select { |s| s =~ /^-S\d*$/ }.first.sub(/^-S/, '').to_i rescue 0
 sortdir = opts.include? "-R/"
 exclude = opts.select { |s| s.start_with? "-X=" }.map { |s| s.sub(/^-X=/, '') }
 opts = [opts, "-framedrop", "-fs"].flatten if opts.include? '-DF'
 opts.reject! do |s|
 	r = false
-	['-DF', '-S', '-R'].each { |p| r ||= (s == p) }
-	['-X=', '-S', '-R'].each { |p| r ||= s.start_with?(p) }
+	['-DF', '-S', '-R', '-R/'].each { |p| r ||= (s == p) }
+	['-X=', '-S', '-C'].each { |p| r ||= s.start_with?(p) }
 	r
 end
 
