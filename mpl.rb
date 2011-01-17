@@ -6,6 +6,7 @@
 # -S	random start	(doesn't randomize order, just where to start)
 # -S<number>	(drop first $number elements)
 # -C<number>	cut after first N files (applied *after* both R and S)
+# -R<number>	synonymous to -R -C<number>
 # -DF		-framedrop -fs
 # -X	exclude extension	(-X jpeg will ignore all .jpeg files) (note that mpl excludes some extensions by default, grep rejary)
 # any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
@@ -40,7 +41,7 @@ end
 
 # parse opts
 randomize = ! opts.select { |s| s.start_with? "-R" }.empty?
-justone = opts.select { |s| s =~ /^-C\d+$/ }.first.sub(/^-C/, '').to_i rescue 0
+justone = opts.select { |s| s =~ /^-[RC]\d+$/ }.first.sub(/^-[RC]/, '').to_i rescue 0
 rotate = opts.select { |s| s =~ /^-S\d*$/ }.first.sub(/^-S/, '').to_i rescue 0
 sortdir = opts.include? "-R/"
 exclude = opts.select { |s| s.start_with? "-X=" }.map { |s| s.sub(/^-X=/, '') }
