@@ -42,7 +42,7 @@ end
 # parse opts
 randomize = ! opts.select { |s| s.start_with? "-R" }.empty?
 justone = opts.select { |s| s =~ /^-[RC]\d+$/ }.first.sub(/^-[RC]/, '').to_i rescue 0
-rotate = opts.select { |s| s =~ /^-S\d*$/ }.first.sub(/^-S/, '').to_i rescue 0
+rotate = opts.select { |s| s =~ /^-S\d*$/ }.first.sub(/^-S/, '').to_i rescue nil
 sortdir = opts.include? "-R/"
 exclude = opts.select { |s| s.start_with? "-X=" }.map { |s| s.sub(/^-X=/, '') }
 opts = [opts, "-framedrop", "-fs"].flatten if opts.include? '-DF'
@@ -259,7 +259,7 @@ if rotate
 	rotate = rand sz if rotate == 0
 	puts "rotate=#{rotate}"
 	rotate %= sz
-	files = files[rotate..sz] + files[0..rotate-1]
+	files = files[rotate..sz-1] + files[0..rotate-1]
 end
 
 # -R\d+
