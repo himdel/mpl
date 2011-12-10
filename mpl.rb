@@ -49,7 +49,7 @@ opts = [opts, "-framedrop", "-fs"].flatten if opts.include? '-DF'
 opts.reject! do |s|
 	r = false
 	['-DF', '-S', '-R', '-R/'].each { |p| r ||= (s == p) }
-	['-X=', '-S', '-C'].each { |p| r ||= s.start_with?(p) }
+	['-X=', '-S', '-C', '-R'].each { |p| r ||= s.start_with?(p) }
 	r
 end
 
