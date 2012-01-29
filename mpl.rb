@@ -123,6 +123,31 @@ def snd_restore
 end
 
 
+# screensaver stop and restore
+
+def ss_stop
+	pid = `pidof xscreensaver`.chomp.to_i rescue 0
+	p [ :ss_stop, pid ]
+	if (pid != 0)
+		@ss = `ps -e j | awk '{ print $7" "$2 }' | grep ^#{pid}`.chomp rescue false
+		p [ :ss_stop, @ss ]
+		@ss = false if @ss[0,1] == 'T' rescue false
+		p [ :ss_stop, @ss ]
+	end
+	return unless @ss
+	`xset dpms force on`
+	`xscreensaver-command -deactivate`
+	`killall -STOP #{pid}`
+end
+
+def ss_restore
+	p [ :ss_restore, @ss ]
+	return unless @ss
+	`killall -CONT xscreensaver`
+	`xscreensaver-command -deactivate`
+end
+
+
 def mplayer( a, b )
 	system("mplayer", *(a + b))
 end
@@ -268,16 +293,12 @@ files = files[0..justone - 1] if justone != 0
 p files
 
 # switch on screen, switch off screensaver
-snd_save unless opts.include? ["-ao", "null"]
-`xset dpms force on`
-`xscreensaver-command -deactivate`
-`killall -STOP xscreensaver`
+snd_save unless opts.include? [ "-ao", "null" ]
+ss_stop unless opts.include? [ "-vo", "null" ]
 
 # run mplayer
 mplayer(opts.flatten, files.flatten)
 
 # clean up, deactivate xscreensaver
-`killall -CONT xscreensaver`
+ss_restore unless opts.include? [ "-vo", "null" ]
 snd_restore unless opts.include? ["-ao", "null"]
-`xscreensaver-command -deactivate`
-p :end
