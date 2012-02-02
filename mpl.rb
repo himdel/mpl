@@ -12,6 +12,9 @@
 # -T	open in new $TERM
 # any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
 
+# TODO unrandom .. be able to disable shuffle and continue from next file
+# already runs separate mplayer per file so easy say w/ signals
+
 require 'tempfile'
 
 # compatibility with older ruby versions
@@ -113,8 +116,6 @@ end
 def snd_save
 	snd_save_amixer rescue $stderr.puts "snd_save_amixer failed"
 	snd_save_mpc rescue $stderr.puts "snd_save_mpc failed"
-
-	p @volume
 end
 
 def snd_restore
@@ -268,7 +269,7 @@ class Array
 			self[j], self[i] = self[i], self[j]
 		end
 	end
-	
+
 	def shuffle
 		dup.shuffle!
 	end
@@ -352,7 +353,11 @@ end
 # -R\d+
 files = files[0..justone - 1] if justone != 0
 
-p files
+puts "Queue:"
+fmt = "%#{files.length.to_s.length}d. %s\n"
+files.each_index do |i|
+	printf(fmt, i, files[i])
+end
 
 # switch on screen, switch off screensaver
 snd_save unless opts.include? [ "-ao", "null" ]
