@@ -12,6 +12,7 @@
 # -T	open in new $TERM
 # any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
 
+require 'tempfile'
 
 # compatibility with older ruby versions
 unless String.new.respond_to? "start_with?"
@@ -150,13 +151,67 @@ def ss_restore
 end
 
 
-def mplayer( a, b )
-	# TODO yeah, -T doesn't really work like this, we want mpl.rb in the term, not just mplayer
-	if $newterm
-		system(ENV['TERM'], "-e", "mplayer", *(a + b))
-	else
-		system("mplayer", *(a + b))
+# input handler for mpl
+# parses mplayer's input.conf and emits a new one, better suited for mpl
+def input(config)
+	hash = {}
+	IO.readlines(config).each do |l|
+		m = l.match(/^\s*([^\s#]+)\s+([^#]+?)\s*(#.*)?$/)
+		unless m
+			next if l.match(/^\s*(#.*)?$/)
+			$stderr.puts "input.conf: can't parse: #{l}"
+		end
+		hash[m[1]] = m[2]
 	end
+
+	hash.update({
+		'ESC' => 'quit 1',
+		'q' => 'quit 1',
+
+		'>' => 'quit 2',
+		'<' => 'quit 3',
+	})
+
+	file = Tempfile.new('mpl-input')
+	hash.each do |k, v|
+		file.write("#{k} #{v}\n");
+	end
+	file.close
+
+	file
+end
+
+def mplayer( opts, files )
+	tmp = input('/etc/mplayer/input.conf')
+	$stderr.puts "using tempfile #{tmp.path}"
+	params = [ "mplayer", "-input", "conf=#{tmp.path}" ] + opts
+
+	i = 0
+	while i < files.length
+		$stderr.puts "playing file #{files[i]} (index #{i})"
+		system(*(params + files[i..i]))
+
+		# return statuses
+		# 0: ended by itself
+		# 1: q,ESC,error
+		# 2: >
+		# 3: <
+		case $?.exitstatus
+		when 0
+			i += 1
+		when 1
+			break
+		when 2
+			i += 1
+		when 3
+			i -= 1 if i > 0
+		else
+			break
+		end
+	end
+
+	tmp.unlink
+	# TODO if $newterm... ENV['TERM']...
 end
 
 # play current dir if no files
