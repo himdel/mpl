@@ -9,6 +9,7 @@
 # -R<number>	synonymous to -R -C<number>
 # -DF		-framedrop -fs
 # -X	exclude extension	(-X jpeg will ignore all .jpeg files) (note that mpl excludes some extensions by default, grep rejary)
+# -T	open in new $TERM
 # any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
 
 
@@ -45,10 +46,11 @@ justone = opts.select { |s| s =~ /^-[RC]\d+$/ }.first.sub(/^-[RC]/, '').to_i res
 rotate = opts.select { |s| s =~ /^-S\d*$/ }.first.sub(/^-S/, '').to_i rescue nil
 sortdir = opts.include? "-R/"
 exclude = opts.select { |s| s.start_with? "-X=" }.map { |s| s.sub(/^-X=/, '') }
+$newterm = opts.include? '-T'
 opts = [opts, "-framedrop", "-fs"].flatten if opts.include? '-DF'
 opts.reject! do |s|
 	r = false
-	['-DF', '-S', '-R', '-R/'].each { |p| r ||= (s == p) }
+	['-DF', '-S', '-R', '-R/', '-T'].each { |p| r ||= (s == p) }
 	['-X=', '-S', '-C', '-R'].each { |p| r ||= s.start_with?(p) }
 	r
 end
@@ -149,7 +151,12 @@ end
 
 
 def mplayer( a, b )
-	system("mplayer", *(a + b))
+	# TODO yeah, -T doesn't really work like this, we want mpl.rb in the term, not just mplayer
+	if $newterm
+		system(ENV['TERM'], "-e", "mplayer", *(a + b))
+	else
+		system("mplayer", *(a + b))
+	end
 end
 
 # play current dir if no files
