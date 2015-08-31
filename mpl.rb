@@ -1,5 +1,8 @@
 #!/usr/bin/ruby
 
+# tried in order
+$backends = %w( mpv mplayer mplayer2 );
+
 # params:
 # -R	randomize files		(keeps subsequent files with increasing _\d+ suffix together) (1x02-Ep_1.avi and 1x03-Ep_2.avi will be kept together but 1x02-Ep1.avi and 1x03-Ep2.avi won't)
 # -R/	randomize dirs		(randomizes order of directories but not the files within)
@@ -12,24 +15,12 @@
 # -T	open in new $TERM
 # any other args are passed to mplayer, but note you have to use -ao=null instead of -ao null (for all options with params)
 
-# TODO unrandom .. be able to disable shuffle and continue from next file
-# already runs separate mplayer per file so easy say w/ signals
-
 require 'tempfile'
 
-# compatibility with older ruby versions
-unless String.new.respond_to? "start_with?"
-	class String
-		def start_with?(s)
-			self.match /^#{s}/
-		end
-	end
-end
-
 # split args into files and options
-def split_ary(ary)
-	a = []
-	b = []
+def split_args(ary)
+	files = []
+	opts = []
 	c = false
 	ary.each do |i|
 		next if i == '-'
@@ -37,12 +28,12 @@ def split_ary(ary)
 			c = true
 			next
 		end
-		a << i if c or not (i =~ /^-/)
-		b << i if (not c) and (i =~ /^-/)
+		files << i if c or not (i =~ /^-/)
+		opts << i if (not c) and (i =~ /^-/)
 	end
-	[a, b]
+	[files, opts]
 end
-(files, opts) = split_ary(ARGV)
+(files, opts) = split_args(ARGV)
 
 # parse opts
 randomize = ! opts.select { |s| s.start_with? "-R" }.empty?
@@ -50,16 +41,17 @@ justone = opts.select { |s| s =~ /^-[RC]\d+$/ }.first.sub(/^-[RC]/, '').to_i res
 rotate = opts.select { |s| s =~ /^-S\d*$/ }.first.sub(/^-S/, '').to_i rescue nil
 sortdir = opts.include? "-R/"
 exclude = opts.select { |s| s.start_with? "-X=" }.map { |s| s.sub(/^-X=/, '') }
+$setvolume = opts.select { |s| s.start_with? "-V=" }.map { |s| s.sub(/^-V=/, '').to_i }
 $newterm = opts.include? '-T'
 opts = [opts, "-framedrop", "-fs"].flatten if opts.include? '-DF'
 opts.reject! do |s|
 	r = false
-	['-DF', '-S', '-R', '-R/', '-T'].each { |p| r ||= (s == p) }
+	['-DF', '-S', '-R', '-R/', '-T', '-1', '-2'].each { |p| r ||= (s == p) }
 	['-X=', '-S', '-C', '-R'].each { |p| r ||= s.start_with?(p) }
 	r
 end
 
-rejary = ['sub', 'srt', 'txt', 'pdf', 'tgz', 'rb', 'pdf', 'jpg', 'idx', 'zip', 'png', 'gif', 'JPG', 'jpeg', 'ps', 'py', 'gz', 'bz2', 'h', 'o', 'c', exclude].flatten.map { |x| "." + x.downcase }
+rejary = ['sub', 'srt', 'txt', 'pdf', 'tgz', 'rb', 'jpg', 'idx', 'zip', 'png', 'gif', 'JPG', 'jpeg', 'ps', 'py', 'gz', 'bz2', 'h', 'o', 'c', 'xml', 'rar', exclude].flatten.map { |x| "." + x.downcase }
 
 
 
@@ -70,12 +62,10 @@ def snd_save_mpc
 	@play_state = `mpc | sed -n 2p`.chomp.sub(/^\s*\[(.*)\].*$/, '\1')
 	`mpc toggle` if @play_state == "playing"
 
-	volume = `mpc | sed -n 3p`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1').to_i
-	if volume.to_i == volume
-		@volume = volume
-		return
-	end
-	raise volume
+	@volume = `mpc | grep volume`.chomp.sub(/^.*volume:\s*([0-9]*).*$/, '\1').to_i
+	`mpc volume #{$setvolume}` if $setvolume
+
+	p [:snd_save_mpc, @play_state, @volume]
 end
 
 # restore volume and play/paused state
@@ -92,7 +82,7 @@ def snd_save_amixer
 
 	volume = []
 	['Master', 'PCM'].each do |d|
-		vals = `amixer sget #{d}`.map(&:chomp).select do |l|
+		vals = `amixer sget #{d}`.split("\n").map(&:chomp).select do |l|
 			l.sub!(/^.*?\s(\d+)\s+\[\d+%\].*$/, '\1')
 		end
 		val = vals.first.to_i
@@ -114,11 +104,14 @@ end
 # dispatchers
 
 def snd_save
+	return if find_backend =~ /mpv/
 	snd_save_amixer rescue $stderr.puts "snd_save_amixer failed"
 	snd_save_mpc rescue $stderr.puts "snd_save_mpc failed"
 end
 
 def snd_restore
+	return unless @volume
+
 	if Array === @volume
 		snd_restore_amixer
 	else
@@ -131,22 +124,20 @@ end
 
 def ss_stop
 	pid = `pidof xscreensaver`.chomp.to_i rescue 0
-	p [ :ss_stop, pid ]
-	if (pid != 0)
-		@ss = `ps -e j | awk '{ print $7" "$2 }' | grep ^#{pid}`.chomp rescue false
-		p [ :ss_stop, @ss ]
-		@ss = false if @ss[0,1] == 'T' rescue false
-		p [ :ss_stop, @ss ]
-	end
+	return if pid == 0
+
+	@ss = `ps -e j | awk '{ print $7" "$2 }' | grep ^#{pid}`.chomp rescue false
+	@ss = false if @ss[0,1] == 'T' rescue false
 	return unless @ss
+
 	`xset dpms force on`
 	`xscreensaver-command -deactivate`
 	`killall -STOP #{pid}`
 end
 
 def ss_restore
-	p [ :ss_restore, @ss ]
 	return unless @ss
+
 	`killall -CONT xscreensaver`
 	`xscreensaver-command -deactivate`
 end
@@ -165,12 +156,22 @@ def input(config)
 		hash[m[1]] = m[2]
 	end
 
-	hash.update({
-		'ESC' => 'quit 1',
-		'q' => 'quit 1',
+	if find_backend !~ /mpv/
+		hash.update({
+			'ESC' => 'quit 1',
+			'q' => 'quit 1',
 
-		'>' => 'quit 2',
-		'<' => 'quit 3',
+			'>' => 'quit 2',
+			'<' => 'quit 3',
+		})
+	end
+
+	hash.update({
+		'PGUP' => 'seek +600',
+		'PGDWN' => 'seek -600',
+
+		'y' => 'sub_step +1',
+		'g' => 'sub_step -1',
 	})
 
 	file = Tempfile.new('mpl-input')
@@ -182,11 +183,35 @@ def input(config)
 	file
 end
 
-def mplayer( opts, files )
-	tmp = input('/etc/mplayer/input.conf')
-	$stderr.puts "using tempfile #{tmp.path}"
-	params = [ "mplayer", "-input", "conf=#{tmp.path}" ] + opts
+# ( courtesy of http://stackoverflow.com/a/5471032/535728 )
+# Cross-platform way of finding an executable in the $PATH.
+#
+#   which('ruby') #=> /usr/bin/ruby
+def which(cmd)
+	exts = ENV['PATHEXT'] ? ENV['PATHEXT'].split(';') : ['']
+	ENV['PATH'].split(File::PATH_SEPARATOR).each do |path|
+		exts.each do |ext|
+			exe = File.join(path, "#{cmd}#{ext}")
+			return exe if File.executable? exe
+		end
+	end
+	return nil
+end
 
+# find right backend
+def find_backend
+	return $cached_bin if $cached_bin
+	bin = nil
+	cmd = nil
+	loop do
+		cmd = $backends.shift
+		bin = which cmd
+		break if bin
+	end
+	$cached_bin = bin
+end
+
+def multiprocess_run(files, params)
 	i = 0
 	while i < files.length
 		$stderr.puts "playing file #{files[i]} (index #{i})"
@@ -209,6 +234,25 @@ def mplayer( opts, files )
 		else
 			break
 		end
+	end
+end
+
+def mplayer( bin, opts, files )
+	if File.exists? "/etc/#{bin}/input.conf"
+		tmp = input("/etc/#{bin}/input.conf")
+#	elsif File.exists? '/etc/mplayer/input.conf'
+#		tmp = input('/etc/mplayer/input.conf')
+	else
+		tmp = input('/dev/null')
+	end
+
+	$stderr.puts "using tempfile #{tmp.path}"
+	params = [ bin , "-input", "conf=#{tmp.path}" ] + opts
+
+	if find_backend !~ /mpv/
+		multiprocess_run(files, params)
+	else
+		system(*(params + files))
 	end
 
 	tmp.unlink
@@ -279,7 +323,7 @@ end
 newopts = []
 dircount = 0
 files.map { |f| File.dirname(f) }.uniq.each do |i|	# sort not necessary
-	x = `cat "#{i}/.mpl"`.chomp.split /\s+/
+	x = `cat "#{i}/.mpl"`.chomp.split(/\s+/)
 	newopts << x unless x.empty?
 	dircount += 1
 end
@@ -301,13 +345,13 @@ if randomize and !sortdir
 	f = []
 	0.upto(files.size - 1) do |i|
 		if q == 0
-			if files[i].match /_(0|0*1)+\.\w{2,5}$/
+			if files[i] =~ /_(0|0*1)+\.\w{2,5}$/
 				q = 1
 				a << files[i]
 				next
 			end
 		elsif q == 1
-			if files[i].match /_\d+\.\w{2,5}$/
+			if files[i] =~ /_\d+\.\w{2,5}$/
 				a << files[i]
 				next
 			else
@@ -330,11 +374,12 @@ end
 # -R/
 if sortdir
 	dirhash = {}
-	files.map do |f|
-		d = File.dirname f
+	files.each do |fn|
+		d = File.dirname fn
 		dirhash[d] = [] if dirhash[d].nil?
-		dirhash[d] << f
+		dirhash[d] << fn
 	end
+
 	files = []
 	dirhash.keys.shuffle.each do |d|
 		files += dirhash[d]
@@ -342,12 +387,12 @@ if sortdir
 end
 
 # -S\d*
-if rotate
+if rotate and not files.empty?
 	sz = files.size
-	rotate = rand sz if rotate == 0
+	rotate = (rand sz).to_i if rotate == 0
 	puts "rotate=#{rotate}"
 	rotate %= sz
-	files = files[rotate..sz-1] + files[0..rotate-1]
+	files = files[rotate..sz - 1] + files[0..rotate - 1]
 end
 
 # -R\d+
@@ -356,7 +401,7 @@ files = files[0..justone - 1] if justone != 0
 puts "Queue:"
 fmt = "%#{files.length.to_s.length}d. %s\n"
 files.each_index do |i|
-	printf(fmt, i, files[i])
+	printf(fmt, i + 1, files[i])
 end
 
 # switch on screen, switch off screensaver
@@ -364,8 +409,8 @@ snd_save unless opts.include? [ "-ao", "null" ]
 ss_stop unless opts.include? [ "-vo", "null" ]
 
 # run mplayer
-mplayer(opts.flatten, files.flatten)
+mplayer(find_backend, opts.flatten, files.flatten)
 
 # clean up, deactivate xscreensaver
 ss_restore unless opts.include? [ "-vo", "null" ]
-snd_restore unless opts.include? ["-ao", "null"]
+snd_restore unless opts.include? [ "-ao", "null" ]
